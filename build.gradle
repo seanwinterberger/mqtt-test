@@ -1,0 +1,28 @@
+plugins {
+    id 'java'
+    id "application"
+}
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    javaMainClass = "com.sw.mqtt.test.MockTester"
+}
+
+application {
+    mainClassName = javaMainClass
+}
+
+dependencies {
+    implementation("io.vertx:vertx-mqtt:3.9.6")
+    implementation("ch.qos.logback:logback-classic:1.2.3")
+}
+
+test {
+    useJUnitPlatform()
+}
