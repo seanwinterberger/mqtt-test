@@ -8,6 +8,7 @@ import io.vertx.core.dns.AddressResolverOptions;
 import io.vertx.mqtt.MqttClient;
 import io.vertx.mqtt.MqttClientOptions;
 import io.vertx.mqtt.impl.MqttClientImpl;
+import io.vertx.mqtt.messages.MqttPublishMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,29 +68,13 @@ public class MockTester {
                     .publishHandler(event -> {
                         //Publish the message back to the client
                         logger.warn("Received {} publishing back - count is {} expect to finish at {}", event.payload(), consumerRecievedCounter.incrementAndGet(), NUMBER_OF_MOCKS);
-                        consumerClient.publish(String.format(TOPIC_DEVICE_CONSUME_FROM_FORMAT, event.payload().toString()), event.payload(), MqttQoS.AT_LEAST_ONCE, false, false);
+                        publishToDeviceWhichSentThePayload(consumerClient, event);
                     })
                     .connect(mqttPort, mqttHost, result -> {
                         logger.warn("Connected consumer mock - ", mqttClientOptions.getClientId());
-                        //Sub for all messages from devices
-                        consumerClient.subscribe(String.format(TOPIC_DEVICES_PUBLISH_TO_FORMAT, "#"), 1);
+                        subscribeForAllDeviceTopicsViaWildcard(consumerClient);
                     });
         });
-    }
-
-    private MqttClientOptions getMqttOptsForMockConsumer() {
-        MqttClientOptions mqttClientOptions = new MqttClientOptions();
-        mqttClientOptions.setClientId("consumermock")
-                .setWillTopic("test/mock/consumer")
-                .setMaxInflightQueue(100)
-                .setCleanSession(false)
-                .setWillMessage("")
-                .setWillFlag(true)
-                .setWillRetain(false)
-                .setMaxMessageSize(126000)
-                .setReconnectAttempts(-1)
-                .setLogActivity(false);
-        return mqttClientOptions;
     }
 
     public void setupMockDevices() {
@@ -108,7 +93,7 @@ public class MockTester {
                     mqttClient.subscribe(String.format(TOPIC_DEVICE_CONSUME_FROM_FORMAT, mockDeviceOpts.getClientId()), 1, subResult -> {
                         if (subResult.succeeded()) {
                             //Publish to TOPIC_DEVICES_PUBLISH_TO with the clientID, nothing special
-                            mqttClient.publish(String.format(TOPIC_DEVICES_PUBLISH_TO_FORMAT, mockDeviceOpts.getClientId()), Buffer.buffer(mockDeviceOpts.getClientId()), MqttQoS.AT_LEAST_ONCE, false, false);
+                            publishToDeviceTopicWhichMockConsumerSubsTo(mockDeviceOpts, mqttClient);
                         }
                     });
                 }).publishHandler(event -> {
@@ -118,6 +103,34 @@ public class MockTester {
             });
         }
     }
+
+    private MqttClient publishToDeviceWhichSentThePayload(MqttClient consumerClient, MqttPublishMessage event) {
+        return consumerClient.publish(String.format(TOPIC_DEVICE_CONSUME_FROM_FORMAT, event.payload().toString()), event.payload(), MqttQoS.AT_LEAST_ONCE, false, false);
+    }
+
+    private MqttClient subscribeForAllDeviceTopicsViaWildcard(MqttClient consumerClient) {
+        return consumerClient.subscribe(String.format(TOPIC_DEVICES_PUBLISH_TO_FORMAT, "#"), 1);
+    }
+
+    private MqttClient publishToDeviceTopicWhichMockConsumerSubsTo(MqttClientOptions mockDeviceOpts, MqttClient mqttClient) {
+        return mqttClient.publish(String.format(TOPIC_DEVICES_PUBLISH_TO_FORMAT, mockDeviceOpts.getClientId()), Buffer.buffer(mockDeviceOpts.getClientId()), MqttQoS.AT_LEAST_ONCE, false, false);
+    }
+
+    private MqttClientOptions getMqttOptsForMockConsumer() {
+        MqttClientOptions mqttClientOptions = new MqttClientOptions();
+        mqttClientOptions.setClientId("consumermock")
+                .setWillTopic("test/mock/consumer")
+                .setMaxInflightQueue(100)
+                .setCleanSession(false)
+                .setWillMessage("")
+                .setWillFlag(true)
+                .setWillRetain(false)
+                .setMaxMessageSize(126000)
+                .setReconnectAttempts(-1)
+                .setLogActivity(false);
+        return mqttClientOptions;
+    }
+
 
     private MqttClientOptions getMqttOptsForMockDevice(String mockClientId) {
         MqttClientOptions mockDevice = new MqttClientOptions();
