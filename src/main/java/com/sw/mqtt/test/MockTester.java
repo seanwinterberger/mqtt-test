@@ -51,30 +51,29 @@ public class MockTester {
 
     public void launchEm() {
         logger.warn("Launching the mock devices");
-
-        executorService.submit(() -> {
-            setupMockConsumer();
-            setupMockDevices();
-        });
+        setupMockConsumerAndEmus();
     }
 
-    private void setupMockConsumer() {
+    private void setupMockConsumerAndEmus() {
         MqttClientOptions mqttClientOptions = getMqttOptsForMockConsumer();
             MqttClient consumerClient = new MqttClientImpl(vertx, mqttClientOptions);
 
-        consumerClient
-                .exceptionHandler(event -> {
-                    logger.error("Something failed during setup of consumer mock - {}", event.getMessage(), event.getCause());
-                })
-                .publishHandler(event -> {
-                    //Publish the message back to the client
-                    logger.warn("Received {} publishing back - count is {} expect to finish at {}", event.payload(), consumerRecievedCounter.incrementAndGet(), NUMBER_OF_MOCKS);
-                    publishToDeviceWhichSentThePayload(consumerClient, event);
-                })
-                .connect(mqttPort, mqttHost, result -> {
-                    logger.warn("Connected consumer mock - ", mqttClientOptions.getClientId());
-                    subscribeForAllDeviceTopicsViaWildcard(consumerClient);
-                });
+        executorService.submit(() -> {
+            consumerClient
+                    .exceptionHandler(event -> {
+                        logger.error("Something failed during setup of consumer mock - {}", event.getMessage(), event.getCause());
+                    })
+                    .publishHandler(event -> {
+                        //Publish the message back to the client
+                        logger.warn("Received {} publishing back - count is {} expect to finish at {}", event.payload(), consumerRecievedCounter.incrementAndGet(), NUMBER_OF_MOCKS);
+                        publishToDeviceWhichSentThePayload(consumerClient, event);
+                    })
+                    .connect(mqttPort, mqttHost, result -> {
+                        logger.warn("Connected consumer mock - ", mqttClientOptions.getClientId());
+                        subscribeForAllDeviceTopicsViaWildcard(consumerClient);
+                        setupMockDevices();
+                    });
+        });
     }
 
     public void setupMockDevices() {
