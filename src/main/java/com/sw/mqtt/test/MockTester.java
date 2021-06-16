@@ -13,8 +13,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class MockTester {
@@ -58,7 +60,7 @@ public class MockTester {
     private void setupMockConsumer() {
         MqttClientOptions mqttClientOptions = getMqttOptsForMockConsumer();
 
-        executorService.submit(() -> {
+        Future future = executorService.submit(() -> {
             MqttClient consumerClient = new MqttClientImpl(vertx, mqttClientOptions);
 
             consumerClient
@@ -75,6 +77,12 @@ public class MockTester {
                         subscribeForAllDeviceTopicsViaWildcard(consumerClient);
                     });
         });
+
+        try {
+            future.get();
+        } catch (ExecutionException | InterruptedException ex) {
+            logger.error("Exception while waiting on main consumer: ", ex);
+        }
     }
 
     public void setupMockDevices() {
