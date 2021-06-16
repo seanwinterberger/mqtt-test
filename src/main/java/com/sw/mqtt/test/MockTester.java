@@ -69,9 +69,11 @@ public class MockTester {
                         publishToDeviceWhichSentThePayload(consumerClient, event);
                     })
                     .connect(mqttPort, mqttHost, result -> {
-                        logger.warn("Connected consumer mock - ", mqttClientOptions.getClientId());
-                        subscribeForAllDeviceTopicsViaWildcard(consumerClient);
-                        setupMockDevices();
+                        if (result.succeeded()) {
+                            logger.warn("Connected consumer mock - ", mqttClientOptions.getClientId());
+                            subscribeForAllDeviceTopicsViaWildcard(consumerClient);
+                            setupMockDevices();
+                        }
                     });
         });
     }
