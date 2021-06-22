@@ -13,15 +13,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Random;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class MockTester {
 
-    private static final int NUMBER_OF_MOCKS = 250;
+    private static final int NUMBER_OF_MOCKS = 25;
 
     protected static final Logger logger = LoggerFactory.getLogger(MockTester.class);
     protected static final String TOPIC_DEVICE_CONSUME_FROM_FORMAT = "test/command/%s";
@@ -32,11 +30,17 @@ public class MockTester {
     private ExecutorService executorService = Executors.newFixedThreadPool(10);
 
     private Vertx vertx;
-    private String mqttHost = "localhost";
-    private int mqttPort = 1883;
+    private String mqttHost = "127.0.0.1";
+    private int[] mqttPorts = new int[]{1883, 1884};
+    private Random portRandom = new Random();
+
 
     public static void main(String[] args) {
         new MockTester().launchEm();
+    }
+
+    private int getRandomPort() {
+        return mqttPorts[portRandom.nextInt(mqttPorts.length)];
     }
 
     public MockTester() {
@@ -53,16 +57,14 @@ public class MockTester {
 
     public void launchEm() {
         logger.warn("Launching the mock devices");
-        setupMockConsumer();
-        setupMockDevices();
+        setupMockConsumerAndEmus();
     }
 
-    private void setupMockConsumer() {
+    private void setupMockConsumerAndEmus() {
         MqttClientOptions mqttClientOptions = getMqttOptsForMockConsumer();
-
-        Future future = executorService.submit(() -> {
             MqttClient consumerClient = new MqttClientImpl(vertx, mqttClientOptions);
 
+        executorService.submit(() -> {
             consumerClient
                     .exceptionHandler(event -> {
                         logger.error("Something failed during setup of consumer mock - {}", event.getMessage(), event.getCause());
@@ -72,17 +74,14 @@ public class MockTester {
                         logger.warn("Received {} publishing back - count is {} expect to finish at {}", event.payload(), consumerRecievedCounter.incrementAndGet(), NUMBER_OF_MOCKS);
                         publishToDeviceWhichSentThePayload(consumerClient, event);
                     })
-                    .connect(mqttPort, mqttHost, result -> {
-                        logger.warn("Connected consumer mock - ", mqttClientOptions.getClientId());
-                        subscribeForAllDeviceTopicsViaWildcard(consumerClient);
+                    .connect(getRandomPort(), mqttHost, result -> {
+                        if (result.succeeded()) {
+                            logger.warn("Connected consumer mock - ", mqttClientOptions.getClientId());
+                            subscribeForAllDeviceTopicsViaWildcard(consumerClient);
+                            setupMockDevices();
+                        }
                     });
         });
-
-        try {
-            future.get();
-        } catch (ExecutionException | InterruptedException ex) {
-            logger.error("Exception while waiting on main consumer: ", ex);
-        }
     }
 
     public void setupMockDevices() {
@@ -95,7 +94,7 @@ public class MockTester {
                 MqttClientOptions mockDeviceOpts = getMqttOptsForMockDevice(mockClientId);
 
                 MqttClient mqttClient = new MqttClientImpl(vertx, mockDeviceOpts);
-                mqttClient.connect(mqttPort, mqttHost, result -> {
+                mqttClient.connect(getRandomPort(), mqttHost, result -> {
                     logger.warn("Connected Device Mock - ", mockClientId);
                     //Sub for commands for this mock
                     mqttClient.subscribe(String.format(TOPIC_DEVICE_CONSUME_FROM_FORMAT, mockDeviceOpts.getClientId()), 1, subResult -> {
